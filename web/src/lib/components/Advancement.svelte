@@ -41,10 +41,10 @@
 
 		<div class="hover-meta">
 			{#if category}
-				<a href={`/category/${category.key}`} class="clickable" on:click|preventDefault|stopPropagation>
+				<div class="clickable">
 					<img src={iconUrl} alt="category" />
 					{category.displayName}
-				</a>
+				</div>
 			{/if}
 			<span>{advancement.source}</span>
 		</div>

@@ -84,6 +84,7 @@ pub enum AdvancementType {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AdvancementCategory {
     pub key: String,
     pub display_name: String,

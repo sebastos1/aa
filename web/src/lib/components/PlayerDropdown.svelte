@@ -15,9 +15,9 @@
 	}
 </script>
 
-<div class="custom-dropdown" onmouseleave={() => (isOpen = false)}>
+<div class="dropdown" onmouseleave={() => (isOpen = false)}>
 	<button
-		class="selected-item-button"
+		class="selected-item"
 		class:open={isOpen}
 		onmouseenter={() => (isOpen = true)}
 	>
@@ -38,22 +38,28 @@
 </div>
 
 <style>
-	.custom-dropdown {
+	* {
+		box-sizing: border-box;
+	}
+
+	.dropdown {
 		position: relative;
 		display: inline-block;
 		font-size: inherit;
 		font-family: 'minecraft', monospace;
-		vertical-align: middle;
 	}
 
-	.selected-item-button {
+	.selected-item {
 		display: inline-flex;
 		align-items: center;
+		vertical-align: middle;
 		background-color: #3a3a3a;
 		border-radius: 6px;
+		border: 2px solid #6d6d6d;
 		cursor: pointer;
 		color: #eee;
 		width: max-content;
+		padding: 0.25rem 0.5rem;
 	}
 
 	.options-list {
@@ -67,20 +73,15 @@
 	.option-item {
 		display: flex;
 		width: max-content;
-        margin-bottom: 4px;
 		background: #3a3a3a;
 		border-radius: 6px;
 		text-align: left;
 		cursor: pointer;
+		padding: 0.25rem 0.5rem;
+		border: 2px solid #6d6d6d;
 	}
 
 	.option-item:hover {
 		background-color: #4f4f4f;
-	}
-
-	.selected-item-button > :global(.icon-text-container),
-	.option-item > :global(.icon-text-container) {
-		padding: 0.25rem 0.5rem;
-		width: 100%;
 	}
 </style>
