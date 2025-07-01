@@ -9,7 +9,7 @@ struct Static;
 
 pub async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {
     // Get the path from the request URI.
-    let mut path = uri.path().trim_start_matches('/').to_string();
+    let mut path = uri.path().trim_start_matches("/").to_string();
 
     // If the path is empty, they're asking for the root, so serve index.html.
     if path.is_empty() {

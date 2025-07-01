@@ -16,6 +16,7 @@ biomes https://minecraft.wiki/images/BiomeSprite_<biome>.png
 structures https://minecraft.wiki/images/EnvSprite_<structure>.png
 (biome list https://minecraft.wiki/w/Java_Edition_data_values/Biomes)
 entity faces https://minecraft.wiki/images/EntitySprite_<variant-entity>.png
+https://minecraft.wiki/w/Template:EntitySprite
 supports variants! variant 0 is just "axolotl", other variants use their variant name
 */
 

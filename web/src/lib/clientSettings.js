@@ -1,59 +1,54 @@
-import { writable } from 'svelte/store';
-import { browser } from '$app/environment';
+import { writable } from "svelte/store";
+import { browser } from "$app/environment";
 
 // settings go here
 const defaultSettings = {
-    testFlag: false
+    testFlag: false,
+    coopMode: false,
+    selectedPlayer: null,
 };
 
-function setCookie(name, value) {
-    if (!browser) return;
-    const d = new Date();
-    d.setTime(d.getTime() + (365 * 24 * 60 * 60 * 1000)); // Expires in 1 year
-    const expires = "expires=" + d.toUTCString();
-    document.cookie = `${name}=${JSON.stringify(value)};${expires};path=/;SameSite=Lax`;
-}
+function initClientSettings() {
+    let initialSettings = defaultSettings;
 
-function saveToLocalStorage(settings) {
-    if (!browser) return;
-    localStorage.setItem('client-settings', JSON.stringify(settings));
-}
+    if (browser) {
+        const persistedSettings = localStorage.getItem("client-settings");
+        if (persistedSettings) {
+            try {
+                initialSettings = { ...defaultSettings, ...JSON.parse(persistedSettings) };
+            } catch (e) {
+                console.error("Could not parse client settings from localStorage", e);
+                initialSettings = defaultSettings;
+            }
+        }
+    }
 
-function createClientSettingsStore() {
-    const { subscribe, set, update } = writable(defaultSettings);
+    const { subscribe, set, update } = writable(initialSettings);
 
     return {
-        set,
         subscribe,
-        init: (initialSettings) => {
-            set(initialSettings);
-        },
+        set,
+        update,
 
-        toggleTestFlag: () => {
+        toggleCoopMode: () => {
             update(settings => {
-                const updatedSettings = { ...settings, testFlag: !settings.testFlag };
-
-                // save to cookie and localstorage!
-                saveToLocalStorage(updatedSettings);
-                setCookie('client-settings', updatedSettings);
-
+                const updatedSettings = { ...settings, coopMode: !settings.coopMode };
+                if (browser) {
+                    localStorage.setItem("client-settings", JSON.stringify(updatedSettings));
+                }
+                return updatedSettings;
+            });
+        },
+        setSelectedPlayer: (uuid) => {
+            update(settings => {
+                const updatedSettings = { ...settings, selectedPlayerUuid: uuid };
+                if (browser) {
+                    localStorage.setItem("client-settings", JSON.stringify(updatedSettings));
+                }
                 return updatedSettings;
             });
         }
     };
 }
 
-export const clientSettings = createClientSettingsStore();
-
-// On initial client-side load, check localStorage to hydrate the store.
-// This is important for client-side navigations where load doesn't re-run.
-if (browser) {
-    const persistedSettings = localStorage.getItem('client-settings');
-    if (persistedSettings) {
-        try {
-            clientSettings.init(JSON.parse(persistedSettings));
-        } catch (e) {
-            console.error("Could not parse client settings from localStorage", e);
-        }
-    }
-}
+export const clientSettings = initClientSettings();

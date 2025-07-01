@@ -1,6 +1,6 @@
 <script>
-	import { page } from '$app/stores';
-	import { advancements, players, categories } from '$lib/stores.js';
+	import { page } from "$app/stores";
+	import { advancements, players, categories } from "$lib/stores.js";
 
 	const advancementId = $derived($page.params.slug);
 	
@@ -71,12 +71,12 @@
     <div class="debug-section">
         <h2>Requirements</h2>
         {#if advancement.requirements && Object.keys(advancement.requirements).length > 0}
-            {#each Object.entries(advancement.requirements) as [reqKey, criteria]}
+            {#each Object.entries(advancement.requirements) as [reqKey, requirements]}
                 <div class="requirement">
                     <strong>{reqKey}:</strong>
                     <ul>
-                        {#each criteria as criterion}
-                            <li><code>{JSON.stringify(criterion, null, 2)}</code></li>
+                        {#each requirements as requirement}
+                            <li><code>{JSON.stringify(requirement, null, 2)}</code></li>
                         {/each}
                     </ul>
                 </div>
@@ -89,7 +89,7 @@
     <div class="debug-section">
         <h2>Spreadsheet Info</h2>
         <div class="field">
-            <strong>Class:</strong> <code>{advancement.spreadsheetInfo?.class || 'None'}</code>
+            <strong>Class:</strong> <code>{advancement.spreadsheetInfo?.class || "None"}</code>
         </div>
         <div class="field">
             <strong>Requirement Details:</strong> 
@@ -108,22 +108,22 @@
                 <strong>Done:</strong> <code>{progress.done}</code>
             </div>
             <div class="field">
-                <strong>Criteria:</strong>
-                {#if progress.criteria && Object.keys(progress.criteria).length > 0}
+                <strong>Requirements:</strong>
+                {#if progress.requirementProgress && Object.keys(progress.requirementProgress).length > 0}
                     <ul>
-                        {#each Object.entries(progress.criteria) as [criteriaKey, date]}
-                            <li><code>{criteriaKey}</code>: {date}</li>
+                        {#each Object.entries(progress.requirementProgress) as [requirementKey, date]}
+                            <li><code>{requirementKey}</code>: {date}</li>
                         {/each}
                     </ul>
                 {:else}
-                    <em>No criteria completed</em>
+                    <em>No requirements completed</em>
                 {/if}
             </div>
         </div>
     {:else}
         <div class="debug-section">
             <h2>Progress</h2>
-            <em>No progress data for {firstPlayer?.name || firstPlayerUuid || 'unknown player'}</em>
+            <em>No progress data for {firstPlayer?.name || firstPlayerUuid || "unknown player"}</em>
         </div>
     {/if}
 
@@ -138,7 +138,7 @@
 		max-width: 800px;
 		margin: 2rem auto;
 		padding: 2rem;
-		font-family: 'minecraft', monospace;
+		font-family: "minecraft", monospace;
 		background: #1a1a1a;
 		color: #eee;
 	}
@@ -178,7 +178,7 @@
 		background: #333;
 		padding: 0.2rem 0.4rem;
 		border-radius: 2px;
-		font-family: 'Courier New', monospace;
+		font-family: "Courier New", monospace;
 		color: #ff6b6b;
 	}
 

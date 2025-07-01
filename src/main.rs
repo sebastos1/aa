@@ -1,18 +1,17 @@
 mod structs;
 mod load;
 mod update;
-mod criteria;
+mod requirements;
 mod cache;
 mod outbound;
 mod embed;
 
 use bytes;
+use structs::Data;
 use anyhow::Result;
 use futures::Stream;
 use reqwest::header;
-use serde::Serialize;
 use sha2::{Sha256, Digest};
-use structs::{Data, Player};
 use tower_http::services::ServeDir;
 use tokio::sync::{broadcast,RwLock};
 use axum::{extract::State, http::{HeaderMap, StatusCode}, response::{sse::{Event, Sse}, IntoResponse}, routing::get, Router};
@@ -20,10 +19,6 @@ use std::{collections::{HashSet}, sync::Arc};
 
 use crate::cache::Cache;
 
-const ENV: &str = "hello";
-
-// const WORLD_PATH: &str = "C:\\Users\\Sebastian\\AppData\\Roaming\\ModrinthApp\\profiles\\My BAC pack\\saves\\New World (1)";
-const WORLD_PATH: &str = "C:\\Users\\Sebastian\\AppData\\Roaming\\ModrinthApp\\profiles\\My BAC pack\\saves\\New World";
 const SERVER_ADDR: &str = "127.0.0.1:3000";
 
 pub struct AppState {
@@ -31,17 +26,11 @@ pub struct AppState {
     etag: String, // hash for the data
     data_bytes: bytes::Bytes, // skip that expensive cloning
     
-    update_tx: broadcast::Sender<PlayerUpdateEvent>,
+    update_tx: broadcast::Sender<crate::update::ProgressUpdateEvent>,
     processing_uuids: HashSet<String>,
     _cache: cache::Cache,
 }
 type SharedState = Arc<RwLock<AppState>>;
-
-#[derive(Serialize, Clone)]
-struct PlayerUpdateEvent {
-    uuid: String,
-    player: Player,
-}
 
 fn build_response_bytes(data: &Data) -> (String, bytes::Bytes) {
     let data_bytes = bytes::Bytes::from(serde_json::to_vec(&data).unwrap());
@@ -58,7 +47,7 @@ async fn main() -> Result<()> {
     let cache = Cache::new().await?;
 
     println!("[1/4] Loading initial world data...");
-    let data = load::load(WORLD_PATH, &cache).await?;
+    let data = load::load(&cache).await?;
 
     let (etag, data_bytes) = build_response_bytes(&data);
 
@@ -79,15 +68,8 @@ async fn main() -> Result<()> {
         .route("/api/init", get(init))
         .route("/api/events", get(event))
         .nest_service(format!("/{}", cache::CACHE_DIR).as_str(), ServeDir::new(cache::CACHE_DIR))
-        .fallback(embed::static_handler)
+        .fallback(embed::static_handler) 
         .with_state(state);
-
-        
-    let app = if ENV == "prod" {
-        app.fallback(embed::static_handler)
-    } else {
-        app.fallback(axum::routing::get_service(ServeDir::new("web/build")))
-    };
 
     let listener = tokio::net::TcpListener::bind(SERVER_ADDR).await?;
     println!("-> Server listening on http://{}", SERVER_ADDR);

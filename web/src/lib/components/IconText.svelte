@@ -1,5 +1,5 @@
 <script>
-	let { src, alt = '', text = '' } = $props();
+	let { src, alt = "", text = "" } = $props();
 </script>
 
 <div class="icon-text-container">

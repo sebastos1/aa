@@ -1,24 +1,29 @@
 <script>
-	import PlayerDropdown from './PlayerDropdown.svelte';
-	import IconText from './IconText.svelte';
-	import PlayerIcon from './PlayerIcon.svelte';
-	import { DEFAULTS } from '$lib/utils.js';
+	import IconText from "./IconText.svelte";
+	import PlayerIcon from "./PlayerIcon.svelte";
+	import { PLACEHOLDERS } from "$lib/utils.js";
+	import PlayerDropdown from "./PlayerDropdown.svelte";
 
-	let { world, players, selectedPlayerUuid, onPlayerChange } = $props();
-	const worldIconUrl = $derived(world?.icon_path);
+	import { players } from "$lib/stores.js";
+	import { clientSettings } from "$lib/clientSettings.js";
 
-    // players = players.slice(0, 1);
+	let { world } = $props();
+	const worldIconUrl = $derived(world?.iconPath);
+
+	const playerList = $derived(Object.values($players));
+	const playerCount = $derived(playerList.length);
+	const singlePlayer = $derived(playerCount <= 1 ? playerList[0] : null);
 </script>
 
 <header>
 	<h1>
 		<span>Advancements in</span>
-		<IconText src={worldIconUrl ?? DEFAULTS.world_icon} text={world?.name ?? '...'} />
+		<IconText src={worldIconUrl ?? PLACEHOLDERS.worldIcon} text={world?.name ?? "World"} />
 		<span>for</span>
-        {#if players.length === 1}
-			<PlayerIcon player={players[0]} />
+        {#if singlePlayer}
+			<PlayerIcon player={singlePlayer} />
 		{:else}
-            <PlayerDropdown {players} {selectedPlayerUuid} onSelect={onPlayerChange} />
+			<PlayerDropdown />
 		{/if}
 	</h1>
 </header>

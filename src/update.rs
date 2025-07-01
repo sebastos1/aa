@@ -1,9 +1,18 @@
 use anyhow::Result;
-use notify::{RecursiveMode, Watcher};
+use serde::Serialize;
 use tokio::sync::mpsc;
-use crate::structs::Player;
-use std::{path::{Path, PathBuf}, time::Duration};
-use crate::{load::{self}, PlayerUpdateEvent, SharedState};
+use notify::{RecursiveMode, Watcher};
+use crate::{load::{self}, structs::Player, SharedState};
+use crate::structs::AdvancementProgress;
+use std::{collections::HashMap, path::{Path, PathBuf}, time::Duration};
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressUpdateEvent {
+    pub uuid: String,
+    pub player: Player, // stats
+    pub updated_progress: HashMap<String, AdvancementProgress>,
+}
 
 pub fn file_watcher(state: SharedState) -> Result<()> {
     let (tx, mut rx) = mpsc::channel::<PathBuf>(100);
@@ -46,7 +55,7 @@ pub fn file_watcher(state: SharedState) -> Result<()> {
             }
         }).expect("Failed to create file watcher");
 
-        let advancements_path = Path::new(crate::WORLD_PATH).join("advancements");
+        let advancements_path = Path::new(crate::load::WORLD_PATH).join("advancements");
         watcher.watch(&advancements_path, RecursiveMode::NonRecursive).expect("Failed to start watching advancements directory");
         
         println!("[WATCHER] Now watching for changes in: {:?}", advancements_path);
@@ -57,36 +66,41 @@ pub fn file_watcher(state: SharedState) -> Result<()> {
 }
 
 pub async fn handle_player_update(state: SharedState, path: &Path, uuid: &str) -> Result<()> {
-    // give the game time to finish up writing, should be plenty
     tokio::time::sleep(Duration::from_millis(150)).await;
 
-    // get new advancement progress
-    let new_progress = load::load_advancement_progress(path)?;
-    
-    // stats
     let stats_path = path.parent().unwrap().parent().unwrap()
-        .join("stats").join(format!("{}.json", uuid));
+        .join(crate::load::PLAYER_STATS_REL_PATH).join(format!("{}.json", uuid));
     let new_stats = load::load_player_stats(&stats_path)?;
 
     let mut app = state.write().await;
 
-    let player = {
-        let player = app.data.players
-        .entry(uuid.to_string())
-        .or_insert_with(|| Player {
-            uuid: uuid.to_string(),
-            ..Default::default()
-        });
-
-        player.advancement_progress = new_progress;
+    let player = if let Some(player) = app.data.players.get_mut(uuid) {
         player.stats = new_stats;
-
         player.clone()
+    } else {
+        Player {
+            uuid: uuid.to_string(),
+            stats: new_stats.clone(),
+            ..Default::default()
+        }
     };
 
-    app.update_tx.send(PlayerUpdateEvent {
+    for old_progress in app.data.progress.values_mut() {
+        old_progress.remove(uuid);
+    }
+
+    let progress: HashMap<String, AdvancementProgress> = load::load_advancement_progress(path)?;
+    for (advancement_key, progress_details) in &progress {
+        app.data.progress
+            .entry(advancement_key.clone())
+            .or_default()
+            .insert(uuid.to_string(), progress_details.clone());
+    }
+    
+    app.update_tx.send(ProgressUpdateEvent {
         uuid: uuid.to_string(),
         player,
+        updated_progress: progress,
     }).ok();
 
     let (etag, data_bytes) = crate::build_response_bytes(&app.data);

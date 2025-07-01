@@ -1,28 +1,37 @@
 <script>
-	import { getIconUrl, getFrameUrl, formatDate, getAdvancementTextColor } from '$lib/utils.js';
+	import { getIconUrl, getFrameUrl, formatDate, getAdvancementTextColor } from "$lib/utils.js";
+	import { players, progress } from "$lib/stores.js";
 
     // only specific advancement data, player specific progress
-	let { advancement, progress, category, showTitle = true } = $props();
+	let { advancement, selectedPlayerUuid, category, showTitle = true } = $props();
 
-	const isCompleted = $derived(progress?.done ?? false);
-	const completionTime = $derived(isCompleted ? Object.values(progress.criteria)[0] : undefined); // is this correct?
+
+
+	const playerProgress = $derived($progress[advancement.key]?.[selectedPlayerUuid]);
+	const isCompleted = $derived(playerProgress?.done ?? false);
+	const completionTime = $derived(isCompleted ? Object.values(playerProgress.requirementProgress)[0] : undefined);
+	const totalRequirements = $derived(Object.keys(advancement.requirements ?? {}).length);
+    const progressCount = $derived(Object.keys(playerProgress?.requirementProgress ?? {}).length);
+	const isInProgress = $derived(!isCompleted && progressCount > 0 && totalRequirements > 1);
 
     const iconUrl = $derived(getIconUrl(advancement.icon));
     const categoryIconUrl = $derived(getIconUrl(category?.icon));
     const frameUrl = $derived(getFrameUrl(advancement.advancementType, isCompleted));
-    // text color for advancement (purple for challenges for example)
     const titleColor = $derived(getAdvancementTextColor(advancement.advancementType));
-	// combine description with extra details from spreadsheet
 	const descriptionText = $derived(advancement.spreadsheetInfo.requirementDetails
-			? `${advancement.description} (${advancement.spreadsheetInfo.requirementDetails})` 
-			: advancement.description
+		? `${advancement.description} (${advancement.spreadsheetInfo.requirementDetails})` 
+		: advancement.description
 	);
 </script>
 
+<!-- {#if isInProgress || isCompleted } -->
 <a href={`/adv/${advancement.key}`} class="advancement" style:--title-color={titleColor}>
 	<div class="icon" style:background-image="url('{frameUrl}')">
 		<img src={iconUrl} alt={advancement.displayName} />
 	</div>
+
+	<div class="title">{progressCount}</div>
+	<div class="title">{totalRequirements}</div>
 
 	{#if showTitle}
 		<div class="title">{advancement.displayName}</div>
@@ -35,14 +44,20 @@
 		</div>
 		<div class="hover-description">{descriptionText}</div>
 
-		{#if isCompleted && completionTime}
-			<div class="hover-achievetime">{formatDate(completionTime)}</div>
-		{/if}
+        {#if isCompleted && completionTime}
+            <div class="hover-status" style:--status-color="limegreen">
+                Achieved: {formatDate(completionTime)}
+            </div>
+        {:else if isInProgress}
+            <div class="hover-status" style:--status-color="yellow">
+                Achieved ({progressCount}/{totalRequirements})
+            </div>
+        {/if}
 
 		<div class="hover-meta">
 			{#if category}
 				<div class="clickable">
-					<img src={iconUrl} alt="category" />
+					<img src={categoryIconUrl} alt="category" />
 					{category.displayName}
 				</div>
 			{/if}
@@ -50,6 +65,7 @@
 		</div>
 	</div>
 </a>
+<!-- {/if} -->
 
 <style>
 	a.advancement {
@@ -86,7 +102,7 @@
 		image-rendering: pixelated;
 	}
 	.title {
-		font-family: 'minecraft', monospace;
+		font-family: "minecraft", monospace;
 		line-height: 1.2;
 		display: flex;
 		justify-content: center;
@@ -127,8 +143,8 @@
 	.hover-icon-space {
 		display: none;
 	}
-	.hover-achievetime {
-		color: gold;
+	.hover-status {
+		color: var(--status-color);
 		font-style: italic;
 		margin-bottom: 0.5rem;
 		text-align: left;

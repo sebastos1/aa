@@ -6,7 +6,7 @@ use crate::load::strip_mc_prefix;
 // requirements
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
-pub enum Criterion {
+pub enum Requirement {
     Item(ItemReq),
     Entity(EntityReq),
     Location(LocationReq),
@@ -39,8 +39,6 @@ pub struct StatReq {
     pub goal: i64,
 }
 
-
-
 // trigger type exceptions
 struct ReadConfig {
     items: bool,
@@ -49,16 +47,16 @@ struct ReadConfig {
     stats: bool,
 }
 
-pub fn get_criteria(json: &Value) -> HashMap<String, Vec<Criterion>> {
-    let mut criteria_map = HashMap::new();
+pub fn get_requirements(json: &Value) -> HashMap<String, Vec<Requirement>> {
+    let mut requirements_map = HashMap::new();
 
-    let Some(criteria) = json.get("criteria").and_then(|criteria| criteria.as_object()) else {
-        return criteria_map;
+    let Some(requirements) = json.get("criteria").and_then(|requirements| requirements.as_object()) else {
+        return requirements_map;
     };
     
-    for (key, criterion_json) in criteria {
-        let Some(trigger) = criterion_json.get("trigger").and_then(|t| t.as_str()) else { continue };
-        let Some(conditions) = criterion_json.get("conditions") else { continue };
+    for (key, requirement_json) in requirements {
+        let Some(trigger) = requirement_json.get("trigger").and_then(|t| t.as_str()) else { continue };
+        let Some(conditions) = requirement_json.get("conditions") else { continue };
 
         let config = ReadConfig {
             items: true,
@@ -78,40 +76,40 @@ pub fn get_criteria(json: &Value) -> HashMap<String, Vec<Criterion>> {
         read_conditions(conditions, &mut found_reqs, &config);
 
         if !found_reqs.is_empty() {
-            criteria_map.insert(strip_mc_prefix(key).to_string(), found_reqs);
+            requirements_map.insert(strip_mc_prefix(key).to_string(), found_reqs);
         }
     }
-    criteria_map
+    requirements_map
 }
 
-fn read_conditions(json: &Value, found: &mut Vec<Criterion>, config: &ReadConfig) {
+fn read_conditions(json: &Value, found: &mut Vec<Requirement>, config: &ReadConfig) {
     if let Some(obj) = json.as_object() {
         let mut parsed = false;
 
         if config.items && (obj.contains_key("items") || obj.contains_key("blocks"))  {
             if let Some(req) = get_item_reqs(json) {
-                found.push(Criterion::Item(req));
+                found.push(Requirement::Item(req));
                 parsed = true;
             }
         }
 
         if config.entities && obj.contains_key("type") {
             if let Some(req) = get_entity_reqs(json) {
-                found.push(Criterion::Entity(req)); 
+                found.push(Requirement::Entity(req)); 
                 parsed = true;
             }
         }
 
         if config.biomes && (obj.contains_key("biomes") || obj.contains_key("structures")) {
             if let Some(req) = get_location_reqs(json) {
-                found.push(Criterion::Location(req));
+                found.push(Requirement::Location(req));
                 parsed = true;
             }
         }
 
         if config.stats && obj.contains_key("stats") {
             if let Some(req) = get_stat_reqs(json) {
-                found.push(Criterion::Stat(req));
+                found.push(Requirement::Stat(req));
                 parsed = true;
             }
         }

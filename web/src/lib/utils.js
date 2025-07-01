@@ -1,20 +1,17 @@
 export const CACHE_DIR = "caches"; // todo: env or something
 
-export const DEFAULTS = {
+export const PLACEHOLDERS = {
     face: "/defaults/steve.png",
-    world_icon: "/defaults/world-icon.png"
+    worldIcon: "/defaults/world-icon.png"
 };
-
 
 // get advancement icon
 export function getIconUrl(icon) {
-    if (!icon) {
-        return "/icons/minecraft_barrier.png";
-    }
+    if (!icon) return "/icons/minecraft_barrier.png";
 
     switch (icon.type) {
         case "playerHead":
-            return icon.texture_id ? `/heads/${icon.texture_id}.png` : "/icons/minecraft_player_head.png";
+            return icon.textureId ? `/heads/${icon.textureId}.png` : "/icons/minecraft_player_head.png";
 
         case "item":
             return icon.name ? `/icons/minecraft_${icon.name}.png` : "/icons/minecraft_stone.png";
@@ -45,13 +42,15 @@ export function getFrameUrl(type, isCompleted) {
 }
 
 export function formatDate(dateString) {
-    if (!dateString) return "";
-
+    if (!dateString) return "N/A";
     const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const year = date.getFullYear().toString().slice(-2);
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    return `(Achieved ${day}/${month}/${year} ${hours}:${minutes})`;
+    if (isNaN(date.getTime())) return "Invalid Date";
+
+    return date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 }

@@ -1,27 +1,24 @@
 <script>
-	import { DEFAULTS } from '$lib/utils.js';
-	import PlayerIcon from './PlayerIcon.svelte';
-
-	let { players, selectedPlayerUuid, onSelect } = $props();
+	import { PLACEHOLDERS } from "$lib/utils.js";
+	import PlayerIcon from "./PlayerIcon.svelte";
+	import { clientSettings } from "$lib/clientSettings.js";
+	import { players, selectedPlayer } from "$lib/stores.js";
 
 	let isOpen = $state(false);
 
-	const selectedPlayer = $derived(players.find(p => p.uuid === selectedPlayerUuid));
-	const otherPlayers = $derived(players.filter((p) => p.uuid !== selectedPlayerUuid));
+	const otherPlayers = $derived(
+        Object.values($players).filter((p) => p.uuid !== $clientSettings.selectedPlayerUuid)
+    );
 
 	function handleSelect(uuid) {
-		onSelect(uuid);
+		clientSettings.setSelectedPlayer(uuid);
 		isOpen = false;
 	}
 </script>
 
 <div class="dropdown" onmouseleave={() => (isOpen = false)}>
-	<button
-		class="selected-item"
-		class:open={isOpen}
-		onmouseenter={() => (isOpen = true)}
-	>
-		<PlayerIcon player={selectedPlayer} />
+	<button class="selected-item" class:open={isOpen} onmouseenter={() => (isOpen = true)} >
+		<PlayerIcon player={$selectedPlayer} />
 	</button>
 
 	{#if isOpen && otherPlayers.length > 0}
@@ -46,7 +43,7 @@
 		position: relative;
 		display: inline-block;
 		font-size: inherit;
-		font-family: 'minecraft', monospace;
+		font-family: "minecraft", monospace;
 	}
 
 	.selected-item {

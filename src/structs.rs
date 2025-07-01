@@ -1,7 +1,7 @@
 
+use std::{collections::HashMap};
 use serde::{Deserialize, Serialize};
-use std::{collections::{HashMap}};
-
+use crate::requirements::Requirement;
 
 #[derive(Debug, Serialize)]
 pub struct Data {
@@ -9,23 +9,27 @@ pub struct Data {
     pub players: HashMap<String, Player>,
     pub advancements: HashMap<String, Advancement>,
     pub categories: HashMap<String, AdvancementCategory>,
-    pub classes: Vec<String>,
+    pub classes: Vec<String>, // from the spreadsheet
+
+    // below this is subject to change after startup
+    pub progress: HashMap<String, HashMap<String, AdvancementProgress>>, // advancement, playerid, player progress
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct World {
+    pub name: String,
+    pub version: String,
+    pub icon_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Player {
     pub uuid: String,
-    pub advancement_progress: HashMap<String, AdvancementProgress>,
     pub stats: PlayerStats,
-
-    // online
-    pub name: Option<String>,
-    pub avatar_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct PlayerStats {
-    pub stats: HashMap<String, HashMap<String, i64>>,
+    pub name: Option<String>, // online
+    pub avatar_url: Option<String>, // online
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -38,25 +42,15 @@ pub struct Advancement {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub parent: Option<String>,
     pub category: String,
-    
-    pub requirements: HashMap<String, Vec<crate::criteria::Criterion>>,
-
+    pub requirements: HashMap<String, Vec<Requirement>>,
     pub display_name: String,
     pub description: String,
     pub spreadsheet_info: SpreadsheetInfo,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct AdvancementProgress {
-    pub criteria: HashMap<String, String>, // todo
-    pub done: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct World {
-    pub name: String,
-    pub version: String,
-    pub icon_path: Option<String>,
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct PlayerStats {
+    pub stats: HashMap<String, HashMap<String, i64>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -81,6 +75,14 @@ pub enum AdvancementType {
     Task,
     Goal,
     Challenge,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AdvancementProgress {
+    #[serde(alias = "criteria")]
+    pub requirement_progress: HashMap<String, String>, // todo
+    pub done: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -7,13 +7,15 @@ use walkdir::WalkDir;
 use zip::ZipArchive;
 use crate::structs::*;
 
+// const WORLD_PATH: &str = "C:\\Users\\Sebastian\\AppData\\Roaming\\ModrinthApp\\profiles\\My BAC pack\\saves\\New World (1)";
+pub const WORLD_PATH: &str = "C:\\Users\\Sebastian\\AppData\\Roaming\\ModrinthApp\\profiles\\My BAC pack\\saves\\New World";
+// pub const WORLD_PATH: &str = "C:\\Users\\Sebastian\\AppData\\Roaming\\ModrinthApp\\profiles\\My BAC pack\\saves\\test";
 const SPREADSHEET_PATH: &str = "spreadsheet_list.csv";
 const MINECRAFT_JAR_PATH: &str = "C:\\Users\\Sebastian\\AppData\\Roaming\\ModrinthApp\\meta\\versions\\1.21.5-21.5.75\\1.21.5-21.5.75.jar";
-
-// in jar:
-const LANGUAGE_PATH: &str = "assets/minecraft/lang/en_us.json";
-const ADVANCEMENT_PATH: &str = "data/minecraft/advancement/";
-
+const PLAYER_ADVANCEMENT_REL_PATH: &str = "advancements"; // crazy biz
+pub const PLAYER_STATS_REL_PATH: &str = "stats";
+const LANGUAGE_PATH: &str = "assets/minecraft/lang/en_us.json"; // jar:
+const ADVANCEMENT_PATH: &str = "data/minecraft/advancement/"; // jar:
 const STRIP_MC_PREFIX: bool = true;
 
 pub fn strip_mc_prefix(s: &str) -> &str {
@@ -21,22 +23,18 @@ pub fn strip_mc_prefix(s: &str) -> &str {
     s.strip_prefix("minecraft:").unwrap_or(s)
 }
 
-pub async fn load(world_path: &str, cache: &crate::cache::Cache) -> Result<Data> {
-    let world_path = Path::new(world_path);
+pub async fn load(cache: &crate::cache::Cache) -> Result<Data> {
+    let world_path = Path::new(WORLD_PATH);
 
     let world = load_world(world_path)?;
-    let mut players = load_players(world_path)?;
+    let mut progress = HashMap::new();
+    let mut players = load_player_data(world_path, &mut progress)?;
 
-    // grab user names and faces MAYBE ONLINE
+    // grab user names and faces, tries to fetch them if we don't have them
     crate::cache::init_profiles(cache, &mut players).await;
 
-
     // load jar
-    let mut minecraft_jar = ZipArchive::new(
-        std::io::BufReader::new(
-            fs::File::open(MINECRAFT_JAR_PATH)?
-        )
-    )?;
+    let mut minecraft_jar = ZipArchive::new(std::io::BufReader::new(fs::File::open(MINECRAFT_JAR_PATH)?))?;
 
     let mut advancements = HashMap::new();
     load_vanilla_advancements(&mut advancements, &mut minecraft_jar)?;
@@ -46,12 +44,17 @@ pub async fn load(world_path: &str, cache: &crate::cache::Cache) -> Result<Data>
     assign_spreadsheet_info(&mut advancements, &spreadsheet_data);
     let categories = assign_categories(&mut advancements);
 
+    // invert player progress to query by advancement instead
+
+    println!("{:#?}", progress);
+
     Ok(Data {
         world,
         players,
         advancements,
         categories,
         classes,
+        progress,
     })
 }
 
@@ -118,10 +121,13 @@ fn read_json(path: &Path) -> Result<serde_json::Value> {
     serde_json::from_str(&content).with_context(|| format!("Invalid JSON in file {}", path.display()))
 }
 
-fn load_players(world_path: &Path) -> Result<HashMap<String, Player>> {
+fn load_player_data(
+    world_path: &Path,
+    progress: &mut HashMap<String, HashMap<String, AdvancementProgress>>
+) -> Result<HashMap<String, Player>> {
     let mut players = HashMap::new();
-    let advancements_dir = world_path.join("advancements");
-    let stats_dir = world_path.join("stats");
+    let advancements_dir = world_path.join(PLAYER_ADVANCEMENT_REL_PATH);
+    let stats_dir = world_path.join(PLAYER_STATS_REL_PATH);
 
     if !advancements_dir.exists() || !stats_dir.exists() {
         return Ok(players);
@@ -130,25 +136,29 @@ fn load_players(world_path: &Path) -> Result<HashMap<String, Player>> {
     // basically just each player
     for stat_entry in fs::read_dir(&stats_dir)? {
         let stat_path = stat_entry?.path();
-        if !stat_path.is_file() || stat_path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+        if !stat_path.is_file() || stat_path.extension().map(|ext| ext != "json").unwrap_or(true) {
             continue;
         }
 
         // filenames are the uuid
-        let uuid = stat_path.file_stem().unwrap().to_str().unwrap();
+        let uuid = stat_path.file_stem().unwrap().to_str().unwrap().to_string();
         let stats = load_player_stats(&stat_path)?;
-        let advancements_path = advancements_dir.join(format!("{}.json", uuid));
-        let advancement_progress = load_advancement_progress(&advancements_path)?;
 
         players.insert(
-            uuid.to_string(),
+            uuid.clone(),
             Player {
-                uuid: uuid.to_string(), 
-                stats, advancement_progress,
-                name: None,
-                avatar_url: None,
+                uuid: uuid.clone(),
+                stats,
+                name: None, avatar_url: None,
             },
         );
+
+        let advancements_path = advancements_dir.join(format!("{}.json", uuid));
+        let player_progress = load_advancement_progress(&advancements_path)?;
+
+        for (advancement_key, progress_details) in player_progress {
+            progress.entry(advancement_key).or_default().insert(uuid.clone(), progress_details);
+        }
     }
 
     Ok(players)
@@ -180,10 +190,10 @@ pub fn load_advancement_progress(path: &Path) -> Result<HashMap<String, Advancem
     
             if let Ok(mut progress) = serde_json::from_value::<AdvancementProgress>(value.clone()) {
 
-                progress.criteria = progress
-                    .criteria
+                progress.requirement_progress = progress
+                    .requirement_progress
                     .into_iter()
-                    .map(|(crit_key, date)| (strip_mc_prefix(&crit_key).to_string(), date))
+                    .map(|(req_key, date)| (strip_mc_prefix(&req_key).to_string(), date))
                     .collect();
 
                 // remove minecraft:, keep any other prefixes
@@ -291,17 +301,12 @@ fn load_vanilla_advancements(advancements: &mut HashMap<String, Advancement>, mi
         let mut file = minecraft_jar.by_index(i)?;
         let path = file.name();
         if !path.starts_with(ADVANCEMENT_PATH) || !path.ends_with(".json") { continue }
-        // println!("debug: Processing file: {}", path);
 
         // the id is the path
-        let mut id = path.strip_prefix(ADVANCEMENT_PATH).unwrap().strip_suffix(".json").unwrap().to_string();
-        if !STRIP_MC_PREFIX {
-            id = format!("minecraft:{}", id);
-        };
-
-        // let id: String = path.strip_prefix(ADVANCEMENT_PATH).unwrap().strip_suffix(".json").unwrap().to_string();
+        let id = format!("minecraft:{}", 
+            path.strip_prefix(ADVANCEMENT_PATH).unwrap().strip_suffix(".json").unwrap().to_string());
+        
         if path.starts_with("recipe") { continue }
-        // println!("debug: ADvancement: {}", id);
 
         // read it like this because it's zipped
         let mut content = String::new();
@@ -309,7 +314,7 @@ fn load_vanilla_advancements(advancements: &mut HashMap<String, Advancement>, mi
         let json: serde_json::Value = serde_json::from_str(&content)?;
 
         if let Some(advancement) = json_to_advancement(&id, &json,  Some(&lang_map)) {
-            advancements.insert(id, advancement);
+            advancements.insert(strip_mc_prefix(&id).to_string(), advancement);
         }
     }
 
@@ -410,19 +415,11 @@ fn json_to_advancement(id: &str, json: &serde_json::Value, lang: Option<&HashMap
         }
     };
 
-    let source = id.split(':').next().unwrap_or("minecraft").to_string();
+    let source = id.split(":").next().unwrap_or("minecraft").to_string();
 
-    
     // get criteria here
-    let requirements = crate::criteria::get_criteria(&json);
-    // println!("debug: Criteria for {}: {:?}", id, requirements);
-
-
-    // let requirements = json
-    //     .get("criteria")
-    //     .and_then(|c| c.as_object())
-    //     .filter(|o| o.len() > 1)
-    //     .map(|o| o.keys().cloned().collect());
+    let requirements = crate::requirements::get_requirements(&json);
+    // println!("debug: Requirements for {}: {:?}", id, requirements);
 
     Some(Advancement {
         key: strip_mc_prefix(id).to_string(),
@@ -444,9 +441,7 @@ fn json_to_icon(json: &serde_json::Value) -> Icon {
                 return icon;
             }
         }
-
         // todo: shimmer detection
-
         return Icon::Item {
             name: strip_mc_prefix(id).to_string(),
             shimmering: false,
@@ -474,7 +469,6 @@ fn get_player_head(json: &serde_json::Value) -> Result<Icon> {
             }
         }
     */
-
     let properties = json.get("components")
         .context("Missing 'components'")?
         .get("profile")
@@ -496,7 +490,7 @@ fn get_player_head(json: &serde_json::Value) -> Result<Icon> {
                 .and_then(|u| u.as_str())
                 .context("Could not find SKIN url in texture data")?;
             
-            let texture_id = skin_url.split('/').last().context("Invalid skin URL format")?.to_string();
+            let texture_id = skin_url.split("/").last().context("Invalid skin URL format")?.to_string();
             return Ok(Icon::PlayerHead { texture_id });
         }
     }
@@ -513,7 +507,6 @@ fn assign_spreadsheet_info(advancements: &mut HashMap<String, Advancement>, spre
 
 fn assign_categories(advancements: &mut HashMap<String, Advancement>) -> HashMap<String, AdvancementCategory> {
     let mut categories = HashMap::new();
-
     // whatever, its fast
     for (id, advancement) in advancements.iter() {
         if advancement.advancement_type == AdvancementType::Root {
